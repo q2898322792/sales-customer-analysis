@@ -22,16 +22,16 @@ from anomaly import detect_anomaly, order_volume_stability, pareto  # noqa: E402
 import visualize as viz                               # noqa: E402
 
 
-def main():
+def main(source="sqlite"):
     print("=" * 68)
-    print("销售与客户专题分析")
+    print("销售与客户专题分析   数据源：%s" % source)
     print("=" * 68)
 
     # ---------- 1. 取数 ----------
-    print("\n[1/6] 从数仓 ADS 层取数 …")
-    cust = fetch_customer_rfm()
-    monthly = fetch_monthly()
-    alerts = fetch_alert_summary()
+    print("\n[1/6] 取数 …")
+    cust = fetch_customer_rfm(source)
+    monthly = fetch_monthly(source)
+    alerts = fetch_alert_summary(source)
     print("  客户 %d 家 | 月度 %d 个月 | 预警 %d 条" % (len(cust), len(monthly), len(alerts)))
 
     # ---------- 2. RFM 八分层 ----------
@@ -121,8 +121,15 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
         for _, r in anomalies.iterrows()
     ) or "| — | — | — | — |"
 
-    alert_lines = "\n".join("| %s | %d | %.1f%% |" % (r["alert_type"], r["cnt"], r["cnt"] / alerts["cnt"].sum() * 100)
-                            for _, r in alerts.iterrows())
+    if len(alerts):
+        tot = alerts["cnt"].sum()
+        alert_lines = "\n".join(
+            "| %s | %d | %.1f%% |" % (r["alert_type"], r["cnt"], r["cnt"] / tot * 100)
+            for _, r in alerts.iterrows())
+        alert_block = "\n".join([
+            "| 预警类型 | 条数 | 占比 |", "|---|---|---|", alert_lines])
+    else:
+        alert_block = "> 自带数据集（sqlite）仅包含订单数据，无预警表；切换到 `--source mysql` 可查看数仓预警分布。"
 
     cluster_lines = "\n".join(
         "| %s | %d | %.2f | %.0f | %.2f |" % (
@@ -191,9 +198,7 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 ## 五、经营预警分布
 
-| 预警类型 | 条数 | 占比 |
-|---|---|---|
-{alert_lines}
+{alert_block}
 
 ## 六、结论与运营建议
 
@@ -238,13 +243,19 @@ Top20% 贡献 60~80%）。因此：
         seg_table=seg_md,
         k=k, cluster_lines=cluster_lines,
         vmin=marked["avg_order_value"].min(), vmax=marked["avg_order_value"].max(),
-        an_lines=an_lines, alert_lines=alert_lines,
+        an_lines=an_lines,
         f_cv=seg["frequency"].std() / seg["frequency"].mean(),
         m_cv=seg["monetary"].std() / seg["monetary"].mean(),
+        alert_block=alert_block,
     )
     with open(REPORT_MD, "w", encoding="utf-8") as f:
         f.write(text)
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    _ap = argparse.ArgumentParser()
+    _ap.add_argument("--source", choices=["sqlite", "mysql"], default="sqlite",
+                     help="数据源：sqlite=项目自带数据（默认，可独立复现）；mysql=直连数仓 ADS 层")
+    _a = _ap.parse_args()
+    main(_a.source)

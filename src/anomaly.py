@@ -12,8 +12,16 @@ import numpy as np
 import pandas as pd
 
 
-def detect_anomaly(monthly, threshold=2.5):
-    """检测单均金额异常月份。返回 (带标记和 z 值的 DataFrame, 异常行 DataFrame)。"""
+def detect_anomaly(monthly, threshold=2.5, min_deviation=15.0):
+    """检测单均金额异常月份。返回 (带标记和 z 值的 DataFrame, 异常行 DataFrame)。
+
+    两个条件**同时**满足才算异常：
+      1. |z| >= threshold（统计上显著偏离）
+      2. |偏离中位数| >= min_deviation%（业务上够大，值得人工核实）
+
+    为什么需要第 2 个条件：当数据本身非常稳定时 MAD 趋近 0，
+    仅靠 z 值会把 0.2% 的微小波动误判成异常（自带数据集上实测出现过）。
+    """
     df = monthly.copy()
     v = df["avg_order_value"].to_numpy(dtype=float)
 
@@ -23,8 +31,8 @@ def detect_anomaly(monthly, threshold=2.5):
     scale = mad * 1.4826 if mad > 0 else (v.std(ddof=1) or 1.0)
 
     df["z_score"] = (v - med) / scale
-    df["is_anomaly"] = df["z_score"].abs() >= threshold
     df["deviation_pct"] = (v / med - 1) * 100
+    df["is_anomaly"] = (df["z_score"].abs() >= threshold) & (df["deviation_pct"].abs() >= min_deviation)
 
     anomalies = df[df["is_anomaly"]].copy()
     return df, anomalies

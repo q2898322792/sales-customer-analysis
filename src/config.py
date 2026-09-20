@@ -20,8 +20,12 @@ DB_CONFIG = {
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 FIG_DIR = os.path.join(OUTPUT_DIR, "figures")
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
-for d in (OUTPUT_DIR, FIG_DIR):
+# 自带仿真数据（SQLite）：项目可独立复现，不依赖 MySQL / 数仓
+SQLITE_PATH = os.path.join(DATA_DIR, "sales.db")
+
+for d in (OUTPUT_DIR, FIG_DIR, DATA_DIR):
     os.makedirs(d, exist_ok=True)
 
 RESULT_CSV = os.path.join(OUTPUT_DIR, "customer_segment_result.csv")
