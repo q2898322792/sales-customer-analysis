@@ -9,7 +9,6 @@
 """
 
 import numpy as np
-import pandas as pd
 
 
 def detect_anomaly(monthly, threshold=2.5, min_deviation=15.0):

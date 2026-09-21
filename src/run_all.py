@@ -11,9 +11,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import numpy as np                                    # noqa: E402
-import pandas as pd                                   # noqa: E402
-
 from config import RESULT_CSV, MONTH_CSV, REPORT_MD   # noqa: E402
 from extract import fetch_customer_rfm, fetch_monthly, fetch_alert_summary  # noqa: E402
 from rfm import score_rfm, segment, segment_summary   # noqa: E402
