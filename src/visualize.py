@@ -19,21 +19,35 @@ def _save(fig, name):
 
 def plot_rfm_scatter(df, name="01_rfm_散点_最近消费vs消费金额.png"):
     """R（横轴，越左越近） vs M（纵轴），按八分层着色。"""
-    fig, ax = plt.subplots(figsize=(9.5, 5.8))
+    fig, ax = plt.subplots(figsize=(10.2, 5.8))
     cmap = plt.get_cmap("tab10")
     # 图例按客户数降序，重要类别排在前面
     order = df["segment"].value_counts().index.tolist()
+
+    # 两个维度都是**右偏分布**（R 偏度 2.42、M 偏度 1.86），77% 的客户落在低值端。
+    # 线性刻度下点必然全挤在左下角 —— 这不是数据问题，是刻度没配得上分布形态。
+    # 处理：M 用 log10；R 用 log10(R+1) 手动压缩（R 含 0，不能直接取对数），
+    #       再把刻度标签换回**真实天数**，保证读图语义不变。
+    def cmp_r(v):
+        return np.log10(np.asarray(v, dtype=float) + 1)
+
     for i, s in enumerate(order):
         d = df[df["segment"] == s]
-        ax.scatter(d["recency"], d["monetary"] / 1e4, s=30, alpha=.78,
+        ax.scatter(cmp_r(d["recency"]), d["monetary"] / 1e4, s=32, alpha=.78,
                    color=cmap(i % 10), label="%s（%d 家）" % (s, len(d)))
 
-    ax.set_xlabel("最近一次消费距今天数 R（天）")
+    ax.set_yscale("log")
+    ticks = [0, 1, 3, 10, 30, 60, 100, 200]
+    ax.set_xticks(cmp_r(ticks))
+    ax.set_xticklabels([str(t) for t in ticks])
+
+    ax.set_xlabel("最近一次消费距今天数 R（天；刻度按对数压缩，标签为真实天数）")
     # 单位用「万元」而非「亿元」：本数据客户营收在百万级，用亿元会出现 0.02/0.08 这类难读的小数刻度
-    ax.set_ylabel("累计消费金额 M（万元）")
+    ax.set_ylabel("累计消费金额 M（万元，对数刻度）")
     ax.set_title("客户 RFM 分布：最近消费 vs 消费金额")
-    ax.legend(fontsize=8.5, ncol=2, loc="upper right")
-    ax.grid(alpha=.3)
+    # 图例移到图外右侧：数据点密集在左下与右侧，图内任何位置都会遮挡
+    ax.legend(fontsize=8.5, loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0)
+    ax.grid(alpha=.3, which="both")
     return _save(fig, name)
 
 
