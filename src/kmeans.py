@@ -65,8 +65,11 @@ def name_clusters(df, labels, value_col="monetary", extra_cols=("frequency",)):
     """
     tmp = df.copy()
     tmp["_cluster"] = labels
+    # 三个统计量都要：m=客均（用于排序命名）、total=簇合计、n=客户数。
+    # ⚠️ 曾经只返回 m 却在报告里当「营收合计」用，导致合计/客均两列都错、命名顺序也乱。
     stat = tmp.groupby("_cluster").agg(
-        m=(value_col, "mean"), f=(extra_cols[0], "mean"), n=(value_col, "count")
+        m=(value_col, "mean"), total=(value_col, "sum"),
+        f=(extra_cols[0], "mean"), n=(value_col, "count")
     ).sort_values("m", ascending=False)
 
     names = ["高价值客户群", "中高价值客户群", "中价值客户群", "中低价值客户群",

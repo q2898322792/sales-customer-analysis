@@ -87,7 +87,7 @@ def main(source="sqlite"):
     marked.to_csv(MONTH_CSV, index=False, encoding="utf-8-sig")
     print("  ✅ %s" % MONTH_CSV)
 
-    write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par, alerts, k, mapping)
+    write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par, alerts, k, mapping, source)
     print("  ✅ %s" % REPORT_MD)
 
     print("\n" + "=" * 68)
@@ -119,7 +119,7 @@ def md_table(df, fmts=None):
     return "\n".join([head, sep] + rows)
 
 
-def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par, alerts, k, mapping):
+def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par, alerts, k, mapping, source):
     total_rev = seg["monetary"].sum()
     an_lines = "\n".join(
         "| %s | %.0f | %s | %+.1f%% |" % (r["month"], r["avg_order_value"], r["orders"], r["deviation_pct"])
@@ -136,10 +136,11 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
     else:
         alert_block = "> 自带数据集（sqlite）仅包含订单数据，无预警表；切换到 `--source mysql` 可查看数仓预警分布。"
 
+    # total=簇营收合计（亿元）；m=客均营收（万元）
     cluster_lines = "\n".join(
-        "| %s | %d | %.2f | %.0f | %.2f |" % (
+        "| %s | %d | %.2f | %.0f | %s |" % (
             mapping.get(int(r["_cluster"]), "-"), int(r["n"]),
-            r["m"] / 1e8, r["f"], r["m"] / max(int(r["n"]), 1))
+            r["total"] / 1e8, r["f"], format(round(r["m"] / 1e4), ","))
         for _, r in cluster_stat.iterrows()
     )
 
@@ -153,8 +154,8 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
     text = """# 销售经营专题分析报告
 
-> 数据来源：制造业经营分析数据仓库 ADS 层（`ads_db.ads_sale_analysis`，{n_cust} 家客户 / {n_month} 个月 / 营收 {total:.2f} 亿元）
-> 说明：底层为仿真数据，结论用于展示「从数仓数据到经营结论」的完整分析链路。
+> 数据来源：{src_desc}（{n_cust} 家客户 / {n_month} 个月 / 营收 {total:.2f} 亿元）
+> 说明：底层为仿真数据，结论用于展示「从数据构造到经营结论」的完整分析链路。
 
 ## 一、总体概览
 
@@ -195,7 +196,7 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 对标准化后的 R / F / M 做 KMeans 聚类，用于验证规则分层的稳健性（两者结论应当接近）。
 
-| 客户群 | 客户数 | 营收合计（亿元） | 平均频次 | 客均营收（亿元） |
+| 客户群 | 客户数 | 营收合计（亿元） | 平均频次 | 客均营收（万元） |
 |---|---|---|---|---|
 {cluster_lines}
 
@@ -207,12 +208,12 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 ## 六、结论与运营建议
 
-1. **客户结构高度分散**：Top10 客户仅贡献营收 {top10:.2f}%，Top20%（{top20c} 家）贡献 {top20:.2f}%。
-   → 无核心大客户依赖，经营风险较低；但缺少大客户抓手，建议按本报告的分层结果做差异化运营。
+1. **{conc1_title}**：Top10 客户贡献营收 {top10:.2f}%，Top20%（{top20c} 家）贡献 {top20:.2f}%。
+   → {conc1_action}
 2. **重点关注「重要价值 / 重要保持」客群**：这是营收主力，应配置专属维护与优先履约资源。
 3. **「重要挽留」客群需激活**：消费金额高但最近消费距今较远，存在流失风险，建议触达召回。
 4. **营收数据口径待核实**：单均金额异常波动（见第二节），在核实前不建议基于营收做趋势外推。
-5. **风险集中在资金链**：预警类型中「回款滞后」与「营收缺口」占比最高，经营风险主要在回款端。
+{conc5}
 
 ## 七、数据适用性说明
 
@@ -265,6 +266,16 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
         m_ok=_mark(seg["monetary"].std() / seg["monetary"].mean() > 0.3),
         c_ok=_mark(par["top20_share"] >= 50),
         alert_block=alert_block,
+        src_desc=("项目自带仿真数据集（SQLite `data/sales.db`）" if source == "sqlite"
+                  else "制造业经营分析数据仓库 ADS 层（`ads_db.ads_sale_analysis`）"),
+        conc1_title=("客户结构较为集中" if par["top20_share"] >= 50 else "客户结构高度分散"),
+        conc1_action=("符合制造业客户结构特征；头部客户是营收主力，需重点维护以避免单点流失。"
+                      if par["top20_share"] >= 50 else
+                      "无核心大客户依赖，经营风险较低；但缺少大客户抓手，建议按分层结果做差异化运营。"),
+        conc5=("5. **风险集中在资金链**：预警类型中「回款滞后」与「营收缺口」占比最高，经营风险主要在回款端。"
+               if len(alerts) else
+               "5. **（本数据源无预警数据）**：自带数据集只含订单，无法给出资金链/生产端风险判断；"
+               "切换 `--source mysql` 可基于数仓预警表补充该结论。"),
     )
     with open(REPORT_MD, "w", encoding="utf-8") as f:
         f.write(text)
