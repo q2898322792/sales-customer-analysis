@@ -154,7 +154,8 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
     text = """# 销售经营专题分析报告
 
-> 数据来源：{src_desc}（{n_cust} 家客户 / {n_month} 个月 / 营收 {total:.2f} 亿元）
+> 数据来源：{src_desc}
+> 规模：{n_cust} 家客户 / {n_month} 个月 / {n_orders:,} 单 / 营收 {total:.2f} 亿元
 > 说明：底层为仿真数据，结论用于展示「从数据构造到经营结论」的完整分析链路。
 
 ## 一、总体概览
@@ -173,7 +174,8 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 **核心发现：月度订单量基本恒定，但单均金额剧烈波动。**
 
-月订单量变异系数仅 **{cv:.3f}**（高度稳定），而单均金额在 {vmin:,.0f} ~ {vmax:,.0f} 元之间波动。
+月订单量变异系数仅 **{cv:.3f}**（高度稳定）；而单均金额：正常月稳定在 **{vmed:,.0f} 元**附近，
+异常月则偏离到 **{vmin:,.0f} ~ {vmax:,.0f} 元**（最大波动 **{vratio:.1f} 倍**）。
 订单活跃度不变而金额剧变，说明异常出在**金额维度**而非交易活跃度。
 
 | 异常月份 | 单均金额（元） | 当月订单数 | 相对中位数偏离 |
@@ -183,7 +185,10 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 **判断与建议**：需核实是大单 / 促销政策导致的真实业务波动，还是金额字段存在数据质量问题。
 若为后者，所有营收类指标（营收、客单价、毛利）均会失真，应优先排查上游采集口径。
 
-> 方法：稳健 z-score（中位数 + MAD，比均值+标准差更抗离群值污染），阈值 |z| ≥ 2.5。
+> **方法**：稳健 z-score（中位数 + MAD，比均值+标准差更抗离群值污染）。
+> 需**同时**满足两个条件才判为异常：① \\|z\\| ≥ 2.5 ② \\|偏离中位数\\| ≥ 15%。
+> 之所以要加第 ② 条：当数据本身极稳定时 MAD 趋近 0、z 值会爆炸，
+> 仅靠 ① 会把 0.2% 的微小波动误判为异常（实测出现过）。
 
 ## 三、客户价值分层（RFM）
 
@@ -194,11 +199,25 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 ## 四、KMeans 聚类交叉验证（k={k}）
 
-对标准化后的 R / F / M 做 KMeans 聚类，用于验证规则分层的稳健性（两者结论应当接近）。
+对标准化后的 R / F / M 做 KMeans 聚类，与第三节的规则分层交叉验证。
 
 | 客户群 | 客户数 | 营收合计（亿元） | 平均频次 | 客均营收（万元） |
 |---|---|---|---|---|
 {cluster_lines}
+
+> ⚠️ **命名依据是「客均营收」降序，而不是「营收合计」** —— 簇越大合计越高，
+> 所以「中高价值客户群」的合计可能高于「高价值客户群」，这不矛盾（前者客户数远多于后者）。
+
+**一致性结论**：两种方法的分层粒度本就不同（RFM 按 R/F/M 三维二分得 8 类；KMeans 按距离聚成 4 簇），
+因此不强求成员完全一致，而是看**价值序是否一致**：
+
+- KMeans 各簇的客均营收**严格递减**（{cluster_means}）—— 簇的价值序清晰 ✅
+- 更有说服力的一致点：**KMeans 前两簇合计 {top2_rev:.2f} 亿元（占 {top2_pct:.1f}%），
+  与 RFM「重要价值客户」的 {rfm_top_pct:.1f}% 基本重合** —— 两种方法独立得出
+  「营收高度集中在头部分层」这同一结论 ✅
+
+> 说明：RFM 八类的**客均**营收是总体递减但并非严格单调（样本量小的类别会交叉，
+> 如「重要发展客户」仅 7 家），这是小样本的正常现象，不影响分组结论。
 
 > 聚类实现：numpy（k-means++ 初始化 + 固定随机种子），不依赖 scikit-learn，结果可复现。
 
@@ -211,7 +230,9 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 1. **{conc1_title}**：Top10 客户贡献营收 {top10:.2f}%，Top20%（{top20c} 家）贡献 {top20:.2f}%。
    → {conc1_action}
 2. **重点关注「重要价值 / 重要保持」客群**：这是营收主力，应配置专属维护与优先履约资源。
-3. **「重要挽留」客群需激活**：消费金额高但最近消费距今较远，存在流失风险，建议触达召回。
+3. **「重要挽留」客群需甄别**：{reclaim_n} 家、平均 R={reclaim_r} 天（最久未交易），
+   但其营收仅占 **{reclaim_pct:.2f}%** —— 属"单客价值层级不低、但体量很小"的流失预警客群，
+   建议用**低成本触达**（短信/回访）而非重投资源。
 4. **营收数据口径待核实**：单均金额异常波动（见第二节），在核实前不建议基于营收做趋势外推。
 {conc5}
 
@@ -227,7 +248,7 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 | 营收集中度 | Top20% 客户占 **{top20:.1f}%** | {c_ok} |
 
 **判定标准**：R 需有多个取值（否则该维度无信息）；F / M 变异系数 > 0.3 视为有区分度；
-营收集中度 Top20% ≥ 50% 才符合真实业务的幂律特征。
+营收集中度 Top20% ≥ 50% 才符合真实业务「**少数客户贡献多数营收**」的分布特征。
 
 > **对照教训（值得保留的一段判断过程）**
 > 本项目的姊妹数仓项目使用的是**均匀分布**的仿真客户 —— 每客户每天都下单、金额接近。
@@ -236,9 +257,11 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 > 分层流程技术上完全正确，但业务上什么也没说明。
 >
 > 因此本项目**自带构造**了符合真实业务特征的数据集（见 `src/make_data.py`）：
-> - 金额规模服从幂律 `w ∝ i^(-0.8)` → Top20% 贡献约 62%
-> - 购买活跃度与规模正相关，底部 12% 客户**沉睡**（60~180 天不下单）→ R 才有多样性
-> - 刻意植入一处已知异常（2026-06 单均金额 ×2.2）→ 用于验证异常检测方法的有效性
+> - 金额规模用**混合分布**（85% 对数正态主体 + 15% 对数正态头部）：
+>   偏度 **{m_skew:.2f}**、max/中位 **{m_ratio:.1f}** 倍（原纯幂律方案为 8.31 / 55 倍，图表会被极端值压平）
+>   → Top20% 客户贡献 **{top20:.1f}%**
+> - 购买用**泊松过程**（指数分布间隔），底部 12% 客户**沉睡**（60~180 天不下单）→ R 才有多样性
+> - 刻意植入 **{n_inj} 种形态**的已知异常（{inj_desc}）→ 用于验证异常检测的**双向**识别能力
 >
 > **先判断数据能不能支撑结论，再动手分析** —— 这是本项目沉淀下来的分析习惯。
 
@@ -248,14 +271,37 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 |---|---|
 | `output/customer_segment_result.csv` | 每家客户的 R/F/M、评分、分层与聚类归属 |
 | `output/monthly_sales.csv` | 月度营收、订单数、单均金额与异常标记 |
-| `output/figures/*.png` | 5 张分析图表（RFM 散点、分层柱状、帕累托、月度趋势、聚类散点） |
+| `output/figures/*.png` | 5 张分析图表（RFM 散点、分层**条形图**、帕累托、月度趋势、聚类散点） |
 """.format(
         n_cust=len(seg), n_month=len(marked), total=total_rev / 1e8,
         orders=int(marked["orders"].sum()), avg_orders=marked["orders"].mean(),
         cv=stab["cv"], top10=par["top_n_share"], top20=par["top20_share"], top20c=par["top20_count"],
         seg_table=seg_md,
         k=k, cluster_lines=cluster_lines,
+        # ---- 以下变量全部由实测值计算，避免模板里写死数字与表格脱节 ----
+        n_orders=int(marked["orders"].sum()),
         vmin=marked["avg_order_value"].min(), vmax=marked["avg_order_value"].max(),
+        vmed=(marked.loc[~marked["is_anomaly"], "avg_order_value"].median()
+              if (~marked["is_anomaly"]).any() else marked["avg_order_value"].median()),
+        vratio=marked["avg_order_value"].max() / max(
+            (marked.loc[~marked["is_anomaly"], "avg_order_value"].median()
+             if (~marked["is_anomaly"]).any() else marked["avg_order_value"].median()), 1e-9),
+        cluster_means=" → ".join(format(round(m / 1e4), ",") for m in cluster_stat["m"]),
+        top2_rev=float(cluster_stat["total"].head(2).sum()) / 1e8,
+        top2_pct=float(cluster_stat["total"].head(2).sum()) / float(cluster_stat["total"].sum()) * 100,
+        rfm_top_pct=float(summary.loc[summary["segment"] == "重要价值客户", "revenue_pct"].iloc[0])
+        if (summary["segment"] == "重要价值客户").any() else 0.0,
+        reclaim_n=int(summary.loc[summary["segment"] == "重要挽留客户", "customers"].iloc[0])
+        if (summary["segment"] == "重要挽留客户").any() else 0,
+        reclaim_r=int(round(summary.loc[summary["segment"] == "重要挽留客户", "avg_recency"].iloc[0]))
+        if (summary["segment"] == "重要挽留客户").any() else 0,
+        reclaim_pct=float(summary.loc[summary["segment"] == "重要挽留客户", "revenue_pct"].iloc[0])
+        if (summary["segment"] == "重要挽留客户").any() else 0.0,
+        m_skew=float(seg["monetary"].skew()),
+        m_ratio=float(seg["monetary"].max() / seg["monetary"].median()),
+        n_inj=len(anomalies),
+        inj_desc=(" / ".join("%s %+.0f%%" % (r["month"], r["deviation_pct"])
+                             for _, r in anomalies.iterrows()) or "无"),
         an_lines=an_lines,
         r_min=int(seg["recency"].min()), r_max=int(seg["recency"].max()),
         r_nuniq=int(seg["recency"].nunique()),
