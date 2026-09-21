@@ -72,7 +72,11 @@ def fetch_customer_rfm(source="sqlite"):
     daily["order_cnt"] = daily["order_cnt"].astype(int)
     max_date = daily["stat_date"].max()
 
-    g = daily.groupby(["customer_id", "customer_name", "region"], as_index=False).agg(
+    # ⚠️ 只能按 customer_id 分组：把 customer_name / region 一起放进 groupby，
+    #    同一个客户会因名称在不同日期有多个取值而被拆成多行（数仓源上实测 300 家变 1369 家）。
+    g = daily.groupby("customer_id", as_index=False).agg(
+        customer_name=("customer_name", "max"),
+        region=("region", "max"),
         frequency=("order_cnt", "sum"),
         monetary=("order_amt", "sum"),
         last_date=("stat_date", "max"),

@@ -187,7 +187,7 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 ## 三、客户价值分层（RFM）
 
 打分规则：R / F / M 各按五分位切 1~5 分（R 反向），再按各自是否高于均值二分，组合成 8 类。
-> ⚠️ 本数据中 R 恒为 0、F/M 变异系数仅约 2%，分层区分度有限，详见第七节「数据适用性说明」。
+数据适用性已通过验证（见第七节）：R 取值 {r_nuniq} 个、F/M 变异系数 {f_cv:.2f}/{m_cv:.2f}、Top20% 占 {top20:.1f}%。
 
 {seg_table}
 
