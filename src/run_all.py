@@ -166,6 +166,7 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 | 月均订单量 | {avg_orders:,.0f} 单（变异系数 CV={cv:.3f}） |
 | Top10 客户营收占比 | {top10:.2f}% |
 | Top20% 客户营收占比 | {top20:.2f}% |
+| 累计 80% 所需客户数 | 第 {idx80} 家（共 {n_cust} 家） |
 
 ## 二、经营异常发现（核心）
 
@@ -224,7 +225,8 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
 
 ## 六、结论与运营建议
 
-1. **{conc1_title}**：Top10 客户贡献营收 {top10:.2f}%，Top20%（{top20c} 家）贡献 {top20:.2f}%。
+1. **{conc1_title}**：Top10 客户贡献营收 {top10:.2f}%，Top20%（{top20c} 家）贡献 {top20:.2f}%；
+   **第 {idx80} 家即达到累计 80%**。
    → {conc1_action}
 2. **重点关注「重要价值 / 重要保持」客群**：这是营收主力，应配置专属维护与优先履约资源。
 3. **「重要挽留」客群需甄别**：{reclaim_n} 家、平均 R={reclaim_r} 天（最久未交易），
@@ -308,6 +310,8 @@ def write_report(seg, seg_c, summary, cluster_stat, marked, anomalies, stab, par
         m_cv=seg["monetary"].std() / seg["monetary"].mean(),
         m_ok=_mark(seg["monetary"].std() / seg["monetary"].mean() > 0.3),
         c_ok=_mark(par["top20_share"] >= 50),
+        idx80=(int((par["cum_curve"]["cum_pct"] >= 80).values.argmax()) + 1
+               if (par["cum_curve"]["cum_pct"] >= 80).any() else len(par["cum_curve"])),
         alert_block=alert_block,
         src_desc=("项目自带仿真数据集（SQLite `data/sales.db`）" if source == "sqlite"
                   else "制造业经营分析数据仓库 ADS 层（`ads_db.ads_sale_analysis`）"),
