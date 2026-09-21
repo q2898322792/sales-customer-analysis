@@ -74,7 +74,7 @@ def main(source="sqlite"):
     print("\n[6/6] 出图并写结果 …")
     viz.plot_rfm_scatter(seg)
     viz.plot_segment_bar(summary)
-    viz.plot_pareto(par["cum_curve"])
+    viz.plot_pareto(par)
     viz.plot_monthly_trend(marked)
     viz.plot_clusters(seg_c)
 
