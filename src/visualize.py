@@ -17,7 +17,7 @@ def _save(fig, name):
     return path
 
 
-def plot_rfm_scatter(df, name="01_rfm_散点_最近消费vs消费金额.png"):
+def plot_rfm_scatter(df, name="01-rfm-scatter.png"):
     """R（横轴，越左越近） vs M（纵轴），按八分层着色。"""
     fig, ax = plt.subplots(figsize=(10.2, 5.8))
     cmap = plt.get_cmap("tab10")
@@ -51,7 +51,7 @@ def plot_rfm_scatter(df, name="01_rfm_散点_最近消费vs消费金额.png"):
     return _save(fig, name)
 
 
-def plot_segment_bar(summary, name="02_八分层_客户数与营收占比.png"):
+def plot_segment_bar(summary, name="02-segment-bar.png"):
     """八分层：**横向条形图** —— 客户数（条长） + 营收占比（标注在条上）。
 
     改横向的原因：中文类别名较长，纵向柱状图必须旋转标签且仍然拥挤；
@@ -79,7 +79,7 @@ def plot_segment_bar(summary, name="02_八分层_客户数与营收占比.png"):
     return _save(fig, name)
 
 
-def plot_pareto(par, name="03_帕累托_客户营收累计占比.png"):
+def plot_pareto(par, name="03-pareto.png"):
     """客户营收帕累托：以**累计占比曲线**为主，标注关键读数。
 
     原版用「柱状 + 累计曲线」双轴：柱子被个别头部客户撑开、其余 298 根全被压成一条基线，
@@ -126,7 +126,7 @@ def plot_pareto(par, name="03_帕累托_客户营收累计占比.png"):
     return _save(fig, name)
 
 
-def plot_monthly_trend(marked, name="04_月度趋势_营收与单均金额异常.png"):
+def plot_monthly_trend(marked, name="04-monthly-trend.png"):
     """月度营收（柱） + 单均金额（折线），异常点红色标注。"""
     fig, ax = plt.subplots(figsize=(10, 5.8))
     x = np.arange(len(marked))
@@ -172,7 +172,7 @@ def plot_monthly_trend(marked, name="04_月度趋势_营收与单均金额异常
     return _save(fig, name)
 
 
-def plot_clusters(df, name="05_KMeans聚类_频次vs金额.png"):
+def plot_clusters(df, name="05-kmeans-clusters.png"):
     """KMeans 聚类结果：F vs M 散点，按簇命名着色。"""
     fig, ax = plt.subplots(figsize=(9.5, 5.8))
     cmap = plt.get_cmap("Set2")
