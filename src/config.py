@@ -30,7 +30,9 @@ for d in (OUTPUT_DIR, FIG_DIR, DATA_DIR):
 
 RESULT_CSV = os.path.join(OUTPUT_DIR, "customer_segment_result.csv")
 MONTH_CSV = os.path.join(OUTPUT_DIR, "monthly_sales.csv")
-REPORT_MD = os.path.join(OUTPUT_DIR, "销售与客户专题分析报告.md")
+# 报告放在**仓库根目录**（而不是 output/）—— 招聘方点进仓库第一眼就能看到分析结论。
+# 其余产物（CSV / 图表）仍留在 output/，保持根目录清爽。
+REPORT_MD = os.path.join(BASE_DIR, "销售与客户专题分析报告.md")
 
 
 def setup_matplotlib():
